@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matrix Text Generator</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      overflow: hidden;
+      font-family: 'Courier New', monospace;
+    }
+
+    #matrix-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Scanline overlay */
+    .scanlines {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.1) 0px,
+        rgba(0, 0, 0, 0.1) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      z-index: 1;
+    }
+
+    /* Vignette */
+    .vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.5) 100%);
+      z-index: 2;
+    }
+
+    /* Toggle button */
+    .toggle-btn {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      padding: 10px 20px;
+      background: rgba(0, 20, 0, 0.85);
+      border: 1px solid #00ff41;
+      border-radius: 8px;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      cursor: pointer;
+      text-shadow: 0 0 10px #00ff41;
+      transition: all 0.3s;
+    }
+
+    .toggle-btn:hover {
+      background: rgba(0, 40, 0, 0.9);
+      box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+    }
+
+    /* Control Panel */
+    .control-panel {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      padding: 24px;
+      background: rgba(0, 15, 0, 0.92);
+      border: 1px solid #00ff41;
+      border-radius: 12px;
+      box-shadow: 0 0 40px rgba(0, 255, 65, 0.2), inset 0 0 40px rgba(0, 255, 65, 0.05);
+      backdrop-filter: blur(10px);
+      max-width: 340px;
+      max-height: 90vh;
+      overflow-y: auto;
+      transition: all 0.5s ease;
+    }
+
+    .control-panel.hidden {
+      opacity: 0;
+      transform: translateX(-120%);
+      pointer-events: none;
+    }
+
+    .panel-header h1 {
+      color: #00ff41;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      text-shadow: 0 0 20px #00ff41, 0 0 40px #00ff41;
+      margin-bottom: 4px;
+    }
+
+    .panel-header p {
+      color: rgba(0, 255, 65, 0.5);
+      font-size: 10px;
+      letter-spacing: 4px;
+    }
+
+    .control-group {
+      margin-top: 20px;
+    }
+
+    .control-group label {
+      display: block;
+      color: #00ff41;
+      font-size: 11px;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+
+    .text-input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid #00ff41;
+      border-radius: 6px;
+      color: #00ff41;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    .text-input:focus {
+      box-shadow: 0 0 20px rgba(0, 255, 65, 0.3);
+      background: rgba(0, 0, 0, 0.7);
+    }
+
+    .char-count {
+      text-align: right;
+      color: rgba(0, 255, 65, 0.4);
+      font-size: 10px;
+      margin-top: 4px;
+    }
+
+    /* Range slider */
+    .slider-container {
+      position: relative;
+    }
+
+    .range-slider {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      appearance: none;
+      background: rgba(0, 255, 65, 0.15);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .range-slider::-webkit-slider-thumb {
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #00ff41;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 15px #00ff41;
+      transition: all 0.2s;
+    }
+
+    .range-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+
+    .range-slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: #00ff41;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 15px #00ff41;
+      border: none;
+    }
+
+    .slider-labels {
+      display: flex;
+      justify-content: space-between;
+      color: rgba(0, 255, 65, 0.35);
+      font-size: 9px;
+      margin-top: 6px;
+      letter-spacing: 1px;
+    }
+
+    /* Color picker */
+    .color-options {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .color-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .color-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .color-btn.active {
+      border-color: white;
+      transform: scale(1.15);
+    }
+
+    /* Action buttons */
+    .action-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 6px;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 12px;
+    }
+
+    .action-btn:hover {
+      transform: scale(1.02);
+    }
+
+    .action-btn:active {
+      transform: scale(0.98);
+    }
+
+    .reveal-btn {
+      background: linear-gradient(180deg, rgba(0, 255, 65, 0.25) 0%, rgba(0, 255, 65, 0.08) 100%);
+      border: 1px solid #00ff41;
+      color: #00ff41;
+      text-shadow: 0 0 10px #00ff41;
+    }
+
+    .reveal-btn:hover {
+      box-shadow: 0 0 25px rgba(0, 255, 65, 0.4);
+    }
+
+    .secondary-btn {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid #00ff41;
+      color: #00ff41;
+    }
+
+    .capture-btn {
+      background: linear-gradient(180deg, rgba(255, 0, 100, 0.25) 0%, rgba(255, 0, 100, 0.08) 100%);
+      border: 1px solid #ff0064;
+      color: #ff0064;
+      text-shadow: 0 0 10px #ff0064;
+    }
+
+    .capture-btn:hover {
+      box-shadow: 0 0 25px rgba(255, 0, 100, 0.4);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, #00ff41, transparent);
+      margin: 20px 0;
+    }
+
+    /* URL display */
+    .url-display {
+      padding: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      border: 1px solid rgba(0, 255, 65, 0.25);
+      border-radius: 4px;
+      color: rgba(0, 255, 65, 0.7);
+      font-size: 9px;
+      word-break: break-all;
+      margin: 8px 0;
+      max-height: 60px;
+      overflow-y: auto;
+    }
+
+    /* Footer */
+    .panel-footer {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(0, 255, 65, 0.15);
+      text-align: center;
+      color: rgba(0, 255, 65, 0.35);
+      font-size: 10px;
+      letter-spacing: 2px;
+    }
+
+    /* Copied toast */
+    .copied-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(0, 255, 65, 0.9);
+      color: #000;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 200;
+      opacity: 0;
+      transition: all 0.3s ease;
+    }
+
+    .copied-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Section title */
+    .section-title {
+      color: rgba(0, 255, 65, 0.7);
+      font-size: 10px;
+      letter-spacing: 3px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid rgba(0, 255, 65, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="matrix-canvas"></canvas>
+  <div class="scanlines"></div>
+  <div class="vignette"></div>
+
+  <button class="toggle-btn" onclick="toggleControls()">
+    <span id="toggle-text">◂ HIDE</span> CONTROLS
+  </button>
+
+  <div class="control-panel" id="controlPanel">
+    <div class="panel-header">
+      <h1>MATRIX TEXT</h1>
+      <p>GENERATOR v4.0</p>
+    </div>
+
+    <div class="control-group">
+      <label>YOUR MESSAGE</label>
+      <input 
+        type="text" 
+        class="text-input" 
+        id="customText" 
+        value="WAKE UP NEO" 
+        maxlength="50"
+        oninput="updateText(this.value)"
+      >
+      <div class="char-count"><span id="charCount">11</span>/50 CHARS</div>
+    </div>
+
+    <div class="control-group">
+      <label>RAIN SPEED: <span id="speedValue">12</span>%</label>
+      <div class="slider-container">
+        <input 
+          type="range" 
+          class="range-slider" 
+          id="speedSlider" 
+          min="2" 
+          max="100" 
+          value="12"
+          oninput="updateSpeed(this.value)"
+        >
+        <div class="slider-labels">
+          <span>SLOW</span>
+          <span>FAST</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">MESSAGE SETTINGS</div>
+
+    <div class="control-group">
+      <label>LETTER SPACING: <span id="letterSpacingValue">2.0</span></label>
+      <div class="slider-container">
+        <input 
+          type="range" 
+          class="range-slider" 
+          id="letterSpacingSlider" 
+          min="10" 
+          max="50" 
+          value="20"
+          oninput="updateLetterSpacing(this.value)"
+        >
+        <div class="slider-labels">
+          <span>TIGHT</span>
+          <span>WIDE</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>GLOW AMOUNT: <span id="glowValue">25</span></label>
+      <div class="slider-container">
+        <input 
+          type="range" 
+          class="range-slider" 
+          id="glowSlider" 
+          min="0" 
+          max="60" 
+          value="25"
+          oninput="updateGlow(this.value)"
+        >
+        <div class="slider-labels">
+          <span>NONE</span>
+          <span>INTENSE</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label>MAX MESSAGES: <span id="maxMessagesValue">3</span></label>
+      <div class="slider-container">
+        <input 
+          type="range" 
+          class="range-slider" 
+          id="maxMessagesSlider" 
+          min="1" 
+          max="8" 
+          value="3"
+          oninput="updateMaxMessages(this.value)"
+        >
+        <div class="slider-labels">
+          <span>1</span>
+          <span>8</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">APPEARANCE</div>
+
+    <div class="control-group">
+      <label>REVEAL COLOR</label>
+      <div class="color-options" id="colorOptions">
+        <button class="color-btn active" style="background: #00ff41; box-shadow: 0 0 15px #00ff41;" onclick="setColor('#00ff41', this)"></button>
+        <button class="color-btn" style="background: #00ffff;" onclick="setColor('#00ffff', this)"></button>
+        <button class="color-btn" style="background: #ff0040;" onclick="setColor('#ff0040', this)"></button>
+        <button class="color-btn" style="background: #ffff00;" onclick="setColor('#ffff00', this)"></button>
+        <button class="color-btn" style="background: #ff00ff;" onclick="setColor('#ff00ff', this)"></button>
+        <button class="color-btn" style="background: #ffffff;" onclick="setColor('#ffffff', this)"></button>
+      </div>
+    </div>
+
+    <button class="action-btn reveal-btn" onclick="triggerReveal()">
+      ⚡ REVEAL TEXT ⚡
+    </button>
+
+    <div class="divider"></div>
+
+    <div class="control-group">
+      <label>SHARE YOUR CREATION</label>
+      <button class="action-btn secondary-btn" onclick="generateUrl()">
+        ⟨/⟩ GENERATE URL
+      </button>
+      <div class="url-display" id="urlDisplay" style="display: none;"></div>
+      <button class="action-btn secondary-btn" id="copyBtn" style="display: none;" onclick="copyUrl()">
+        📋 COPY TO CLIPBOARD
+      </button>
+    </div>
+
+    <button class="action-btn capture-btn" onclick="captureFrame()">
+      📸 CAPTURE REVEAL
+    </button>
+
+    <div class="panel-footer">
+      THE MATRIX HAS YOU
+    </div>
+  </div>
+
+  <div class="copied-toast" id="copiedToast">✓ COPIED TO CLIPBOARD</div>
+
+  <script>
+    // Configuration
+    const CONFIG = {
+      fontSize: 26,
+      charWidth: 16,
+      speed: 12,
+      highlightColor: '#00ff41',
+      customText: 'WAKE UP NEO',
+      letterSpacing: 2.0,    // Vertical distance between letters (in fontSize units)
+      glowAmount: 25,        // Glow blur amount
+      maxMessages: 3         // Maximum number of message copies on screen
+    };
+
+    // Matrix characters
+    const MATRIX_CHARS = 'ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*';
+
+    // Canvas setup
+    const canvas = document.getElementById('matrix-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // State
+    let drops = [];
+    let messageGroups = []; // Array of message group objects
+    let dimMode = false;
+    let dimTimer = 0;
+    let dimOpacity = 1;
+    let shareUrl = '';
+
+    // Initialize canvas
+    function initCanvas() {
+      canvas.width = window.innerWidth * window.devicePixelRatio;
+      canvas.height = window.innerHeight * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      
+      initDrops();
+      initMessageGroups();
+    }
+
+    // Initialize background rain drops
+    function initDrops() {
+      const cols = Math.ceil(window.innerWidth / CONFIG.charWidth);
+      drops = [];
+      
+      for (let i = 0; i < cols; i++) {
+        drops.push({
+          x: i * CONFIG.charWidth,
+          y: Math.random() * -50,
+          speed: 0.4 + Math.random() * 0.2,
+          chars: Array(35).fill('').map(() => MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)])
+        });
+      }
+    }
+
+    // Initialize message groups - each group is ONE complete message that moves as a unit
+    function initMessageGroups() {
+      const screenWidth = window.innerWidth;
+      const screenHeight = window.innerHeight;
+      
+      messageGroups = [];
+      
+      for (let g = 0; g < CONFIG.maxMessages; g++) {
+        // Random X position for this message group
+        const xPos = 100 + Math.random() * (screenWidth - 200);
+        
+        // Stagger the starting Y positions so messages don't all appear at once
+        const yOffset = -(g * screenHeight * 0.5) - Math.random() * 200;
+        
+        messageGroups.push({
+          x: xPos,
+          y: yOffset,
+          speed: 0.45,
+          chars: CONFIG.customText.toUpperCase().split('')
+        });
+      }
+    }
+
+    // Respawn a message group at a new random X position
+    function respawnMessageGroup(group) {
+      const screenWidth = window.innerWidth;
+      group.x = 100 + Math.random() * (screenWidth - 200);
+      group.y = -CONFIG.customText.length * CONFIG.letterSpacing * CONFIG.fontSize - Math.random() * 100;
+      group.chars = CONFIG.customText.toUpperCase().split('');
+    }
+
+    // Main draw function
+    function draw() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const speedMultiplier = CONFIG.speed / 180;
+
+      // Handle dim mode timing
+      dimTimer++;
+      
+      if (dimTimer > 480 && !dimMode) {
+        dimMode = true;
+        dimTimer = 0;
+      }
+      
+      if (dimMode) {
+        if (dimTimer < 60) {
+          dimOpacity = Math.max(0.25, dimOpacity - 0.0125);
+        } else if (dimTimer > 150) {
+          dimOpacity = Math.min(1, dimOpacity + 0.008);
+          if (dimOpacity >= 1) {
+            dimMode = false;
+            dimTimer = 0;
+          }
+        }
+      }
+
+      const isDimmed = dimOpacity < 0.6;
+
+      // Clear with fade
+      ctx.fillStyle = isDimmed ? 'rgba(0, 0, 0, 0.12)' : 'rgba(0, 0, 0, 0.06)';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.font = `${CONFIG.fontSize}px 'Courier New', monospace`;
+
+      // Draw background matrix rain
+      drops.forEach((drop) => {
+        for (let j = 0; j < 28; j++) {
+          const y = (drop.y - j) * CONFIG.fontSize;
+          if (y < -CONFIG.fontSize || y > height + CONFIG.fontSize) continue;
+
+          const char = drop.chars[j % drop.chars.length];
+          const trailFade = j === 0 ? 1 : Math.max(0, 1 - j * 0.05);
+          const finalOpacity = dimOpacity * trailFade;
+
+          if (j === 0 && !isDimmed) {
+            ctx.fillStyle = `rgba(180, 255, 180, ${finalOpacity})`;
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = 8;
+          } else {
+            const g = Math.floor(200 * trailFade * dimOpacity);
+            const b = Math.floor(50 * trailFade * dimOpacity);
+            ctx.fillStyle = `rgba(0, ${g}, ${b}, ${finalOpacity * 0.75})`;
+            ctx.shadowBlur = 0;
+          }
+
+          ctx.fillText(char, drop.x, y);
+          ctx.shadowBlur = 0;
+        }
+
+        drop.y += drop.speed * speedMultiplier;
+
+        if (Math.random() < 0.02) {
+          const idx = Math.floor(Math.random() * drop.chars.length);
+          drop.chars[idx] = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
+        }
+
+        if (drop.y * CONFIG.fontSize > height + 500) {
+          drop.y = Math.random() * -20;
+          drop.speed = 0.4 + Math.random() * 0.2;
+        }
+      });
+
+      // Draw message groups - each group is ONE complete message
+      ctx.font = `bold ${CONFIG.fontSize}px 'Courier New', monospace`;
+
+      messageGroups.forEach((group) => {
+        const { x, chars } = group;
+        
+        // Draw each character of the message at fixed vertical intervals
+        chars.forEach((char, i) => {
+          // Skip spaces but maintain position
+          if (char === ' ') return;
+          
+          // Calculate Y position: group.y is the TOP of the message
+          // Each subsequent letter is letterSpacing * fontSize below
+          const charY = group.y + (i * CONFIG.letterSpacing * CONFIG.fontSize);
+          
+          // Skip if off screen
+          if (charY < -CONFIG.fontSize || charY > height + CONFIG.fontSize) return;
+          
+          if (isDimmed) {
+            // Glowing highlight when dimmed
+            ctx.save();
+            ctx.shadowColor = CONFIG.highlightColor;
+            ctx.shadowBlur = CONFIG.glowAmount;
+            ctx.fillStyle = CONFIG.highlightColor;
+            
+            for (let g = 0; g < 3; g++) {
+              ctx.fillText(char, x, charY);
+            }
+            ctx.restore();
+          } else {
+            // Match the green matrix rain color
+            ctx.fillStyle = 'rgba(0, 255, 65, 0.9)';
+            ctx.shadowColor = '#00ff41';
+            ctx.shadowBlur = CONFIG.glowAmount * 0.4;
+            ctx.fillText(char, x, charY);
+            ctx.shadowBlur = 0;
+          }
+        });
+
+        // Move the entire group down together
+        group.y += group.speed * speedMultiplier * CONFIG.fontSize;
+
+        // Check if the LAST character has gone off screen
+        const lastCharY = group.y + ((chars.length - 1) * CONFIG.letterSpacing * CONFIG.fontSize);
+        if (lastCharY > height + 50) {
+          respawnMessageGroup(group);
+        }
+      });
+
+      requestAnimationFrame(draw);
+    }
+
+    // UI Functions
+    function toggleControls() {
+      const panel = document.getElementById('controlPanel');
+      const text = document.getElementById('toggle-text');
+      panel.classList.toggle('hidden');
+      text.textContent = panel.classList.contains('hidden') ? '▸ SHOW' : '◂ HIDE';
+    }
+
+    function updateText(value) {
+      CONFIG.customText = value || 'MATRIX';
+      document.getElementById('charCount').textContent = value.length;
+      // Update all message groups with new text
+      messageGroups.forEach(group => {
+        group.chars = CONFIG.customText.toUpperCase().split('');
+      });
+    }
+
+    function updateSpeed(value) {
+      CONFIG.speed = parseInt(value);
+      document.getElementById('speedValue').textContent = value;
+    }
+
+    function updateLetterSpacing(value) {
+      CONFIG.letterSpacing = value / 10;
+      document.getElementById('letterSpacingValue').textContent = CONFIG.letterSpacing.toFixed(1);
+    }
+
+    function updateGlow(value) {
+      CONFIG.glowAmount = parseInt(value);
+      document.getElementById('glowValue').textContent = value;
+    }
+
+    function updateMaxMessages(value) {
+      CONFIG.maxMessages = parseInt(value);
+      document.getElementById('maxMessagesValue').textContent = value;
+      initMessageGroups();
+    }
+
+    function setColor(color, btn) {
+      CONFIG.highlightColor = color;
+      document.querySelectorAll('.color-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.boxShadow = 'none';
+      });
+      btn.classList.add('active');
+      btn.style.boxShadow = `0 0 15px ${color}`;
+    }
+
+    function triggerReveal() {
+      if (!dimMode) {
+        dimMode = true;
+        dimTimer = 0;
+      }
+    }
+
+    function generateUrl() {
+      const params = new URLSearchParams({
+        text: CONFIG.customText,
+        speed: CONFIG.speed.toString(),
+        color: CONFIG.highlightColor.replace('#', ''),
+        spacing: CONFIG.letterSpacing.toString(),
+        glow: CONFIG.glowAmount.toString(),
+        messages: CONFIG.maxMessages.toString()
+      });
+      shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+      
+      document.getElementById('urlDisplay').textContent = shareUrl;
+      document.getElementById('urlDisplay').style.display = 'block';
+      document.getElementById('copyBtn').style.display = 'block';
+    }
+
+    function copyUrl() {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        const toast = document.getElementById('copiedToast');
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2000);
+      });
+    }
+
+    function captureFrame() {
+      triggerReveal();
+      
+      setTimeout(() => {
+        const link = document.createElement('a');
+        link.download = `matrix-${CONFIG.customText.replace(/\s+/g, '-').toLowerCase()}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      }, 1800);
+    }
+
+    // Parse URL params
+    function parseUrlParams() {
+      const params = new URLSearchParams(window.location.search);
+      
+      // If there are URL params, hide the controls panel
+      const hasParams = params.get('text') || params.get('speed') || params.get('color');
+      if (hasParams) {
+        document.getElementById('controlPanel').classList.add('hidden');
+        document.getElementById('toggle-text').textContent = '▸ SHOW';
+      }
+      
+      if (params.get('text')) {
+        CONFIG.customText = params.get('text');
+        document.getElementById('customText').value = CONFIG.customText;
+        document.getElementById('charCount').textContent = CONFIG.customText.length;
+      }
+      
+      if (params.get('speed')) {
+        CONFIG.speed = parseInt(params.get('speed'));
+        document.getElementById('speedSlider').value = CONFIG.speed;
+        document.getElementById('speedValue').textContent = CONFIG.speed;
+      }
+      
+      if (params.get('color')) {
+        CONFIG.highlightColor = '#' + params.get('color');
+        document.querySelectorAll('.color-btn').forEach(btn => {
+          btn.classList.remove('active');
+          btn.style.boxShadow = 'none';
+          if (btn.style.background === CONFIG.highlightColor || 
+              btn.style.backgroundColor === CONFIG.highlightColor) {
+            btn.classList.add('active');
+            btn.style.boxShadow = `0 0 15px ${CONFIG.highlightColor}`;
+          }
+        });
+      }
+
+      if (params.get('spacing')) {
+        CONFIG.letterSpacing = parseFloat(params.get('spacing'));
+        document.getElementById('letterSpacingSlider').value = CONFIG.letterSpacing * 10;
+        document.getElementById('letterSpacingValue').textContent = CONFIG.letterSpacing.toFixed(1);
+      }
+
+      if (params.get('glow')) {
+        CONFIG.glowAmount = parseInt(params.get('glow'));
+        document.getElementById('glowSlider').value = CONFIG.glowAmount;
+        document.getElementById('glowValue').textContent = CONFIG.glowAmount;
+      }
+
+      if (params.get('messages')) {
+        CONFIG.maxMessages = parseInt(params.get('messages'));
+        document.getElementById('maxMessagesSlider').value = CONFIG.maxMessages;
+        document.getElementById('maxMessagesValue').textContent = CONFIG.maxMessages;
+      }
+    }
+
+    // Initialize
+    window.addEventListener('resize', () => {
+      initCanvas();
+    });
+
+    parseUrlParams();
+    initCanvas();
+    draw();
+  </script>
+</body>
+</html>
