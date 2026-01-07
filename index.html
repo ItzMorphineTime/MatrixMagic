@@ -731,7 +731,7 @@
         group.y += group.speed * speedMultiplier * CONFIG.fontSize;
 
         // Check if the LAST character has gone off screen
-        const lastCharY = group.y + ((chars.length - 1) * CONFIG.letterSpacing * CONFIG.fontSize);
+        const lastCharY = group.y + (CONFIG.letterSpacing * CONFIG.fontSize);
         if (lastCharY > height + 50) {
           respawnMessageGroup(group);
         }
