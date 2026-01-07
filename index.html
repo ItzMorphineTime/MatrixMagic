@@ -355,7 +355,7 @@
   <div class="control-panel" id="controlPanel">
     <div class="panel-header">
       <h1>MATRIX TEXT</h1>
-      <p>GENERATOR v4.0</p>
+      <p>GENERATOR v5.0</p>
     </div>
 
     <div class="control-group">
@@ -470,9 +470,9 @@
     <div class="divider"></div>
 
     <div class="control-group">
-      <label>SHARE YOUR CREATION</label>
+      <label>SHARE HIDDEN MESSAGE</label>
       <button class="action-btn secondary-btn" onclick="generateUrl()">
-        ⟨/⟩ GENERATE URL
+        🔒 GENERATE SECRET URL
       </button>
       <div class="url-display" id="urlDisplay" style="display: none;"></div>
       <button class="action-btn secondary-btn" id="copyBtn" style="display: none;" onclick="copyUrl()">
@@ -485,7 +485,7 @@
     </button>
 
     <div class="panel-footer">
-      THE MATRIX HAS YOU
+      FOLLOW THE WHITE RABBIT
     </div>
   </div>
 
@@ -503,6 +503,47 @@
       glowAmount: 25,        // Glow blur amount
       maxMessages: 3         // Maximum number of message copies on screen
     };
+
+    // Encryption key - used for XOR cipher
+    const CIPHER_KEY = 'THEREISNOSPOON';
+
+    // Encrypt message for URL sharing
+    function encryptMessage(text) {
+      let encrypted = '';
+      for (let i = 0; i < text.length; i++) {
+        const charCode = text.charCodeAt(i) ^ CIPHER_KEY.charCodeAt(i % CIPHER_KEY.length);
+        encrypted += String.fromCharCode(charCode);
+      }
+      // Base64 encode and make URL-safe
+      return btoa(encrypted)
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=/g, '');
+    }
+
+    // Decrypt message from URL
+    function decryptMessage(encoded) {
+      try {
+        // Restore Base64 padding and characters
+        let base64 = encoded
+          .replace(/-/g, '+')
+          .replace(/_/g, '/');
+        // Add padding if needed
+        while (base64.length % 4) {
+          base64 += '=';
+        }
+        const encrypted = atob(base64);
+        let decrypted = '';
+        for (let i = 0; i < encrypted.length; i++) {
+          const charCode = encrypted.charCodeAt(i) ^ CIPHER_KEY.charCodeAt(i % CIPHER_KEY.length);
+          decrypted += String.fromCharCode(charCode);
+        }
+        return decrypted;
+      } catch (e) {
+        console.error('Decryption failed:', e);
+        return 'WAKE UP NEO';
+      }
+    }
 
     // Matrix characters
     const MATRIX_CHARS = 'ﾊﾐﾋｰｳｼﾅﾓﾆｻﾜﾂｵﾘｱﾎﾃﾏｹﾒｴｶｷﾑﾕﾗｾﾈｽﾀﾇﾍ0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ@#$%&*';
@@ -756,12 +797,12 @@
 
     function generateUrl() {
       const params = new URLSearchParams({
-        text: CONFIG.customText,
-        speed: CONFIG.speed.toString(),
-        color: CONFIG.highlightColor.replace('#', ''),
-        spacing: CONFIG.letterSpacing.toString(),
-        glow: CONFIG.glowAmount.toString(),
-        messages: CONFIG.maxMessages.toString()
+        m: encryptMessage(CONFIG.customText), // Encrypted message
+        s: CONFIG.speed.toString(),
+        c: CONFIG.highlightColor.replace('#', ''),
+        l: CONFIG.letterSpacing.toString(),
+        g: CONFIG.glowAmount.toString(),
+        n: CONFIG.maxMessages.toString()
       });
       shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
       
@@ -794,26 +835,27 @@
       const params = new URLSearchParams(window.location.search);
       
       // If there are URL params, hide the controls panel
-      const hasParams = params.get('text') || params.get('speed') || params.get('color');
+      const hasParams = params.get('m') || params.get('s') || params.get('c');
       if (hasParams) {
         document.getElementById('controlPanel').classList.add('hidden');
         document.getElementById('toggle-text').textContent = '▸ SHOW';
       }
       
-      if (params.get('text')) {
-        CONFIG.customText = params.get('text');
+      if (params.get('m')) {
+        // Decrypt the message
+        CONFIG.customText = decryptMessage(params.get('m'));
         document.getElementById('customText').value = CONFIG.customText;
         document.getElementById('charCount').textContent = CONFIG.customText.length;
       }
       
-      if (params.get('speed')) {
-        CONFIG.speed = parseInt(params.get('speed'));
+      if (params.get('s')) {
+        CONFIG.speed = parseInt(params.get('s'));
         document.getElementById('speedSlider').value = CONFIG.speed;
         document.getElementById('speedValue').textContent = CONFIG.speed;
       }
       
-      if (params.get('color')) {
-        CONFIG.highlightColor = '#' + params.get('color');
+      if (params.get('c')) {
+        CONFIG.highlightColor = '#' + params.get('c');
         document.querySelectorAll('.color-btn').forEach(btn => {
           btn.classList.remove('active');
           btn.style.boxShadow = 'none';
@@ -825,20 +867,20 @@
         });
       }
 
-      if (params.get('spacing')) {
-        CONFIG.letterSpacing = parseFloat(params.get('spacing'));
+      if (params.get('l')) {
+        CONFIG.letterSpacing = parseFloat(params.get('l'));
         document.getElementById('letterSpacingSlider').value = CONFIG.letterSpacing * 10;
         document.getElementById('letterSpacingValue').textContent = CONFIG.letterSpacing.toFixed(1);
       }
 
-      if (params.get('glow')) {
-        CONFIG.glowAmount = parseInt(params.get('glow'));
+      if (params.get('g')) {
+        CONFIG.glowAmount = parseInt(params.get('g'));
         document.getElementById('glowSlider').value = CONFIG.glowAmount;
         document.getElementById('glowValue').textContent = CONFIG.glowAmount;
       }
 
-      if (params.get('messages')) {
-        CONFIG.maxMessages = parseInt(params.get('messages'));
+      if (params.get('n')) {
+        CONFIG.maxMessages = parseInt(params.get('n'));
         document.getElementById('maxMessagesSlider').value = CONFIG.maxMessages;
         document.getElementById('maxMessagesValue').textContent = CONFIG.maxMessages;
       }
